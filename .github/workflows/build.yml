@@ -35,11 +35,14 @@ jobs:
         run: npm install --legacy-peer-deps
         env:
           npm_config_msvs_version: 2022
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
 
       - name: Build application
         run: npm run build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+        continue-on-error: false
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4

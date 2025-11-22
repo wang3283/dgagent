@@ -18,6 +18,11 @@
       "dist/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/@lancedb/**/*",
+      "node_modules/@ffmpeg-installer/**/*"
+    ],
+    "buildDependenciesFromSource": false,
     "directories": {
       "output": "release"
     },
