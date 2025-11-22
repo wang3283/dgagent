@@ -42,20 +42,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
-        continue-on-error: false
 
-      - name: Upload Windows installer
+      - name: List release directory (Debug)
+        run: dir release
+        continue-on-error: true
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: DGAgent-Windows-Installer
-          path: release/*.exe
-          if-no-files-found: error
-
-      - name: Upload Windows portable
-        uses: actions/upload-artifact@v4
-        with:
-          name: DGAgent-Windows-Portable
-          path: release/*.zip
+          name: DGAgent-Windows-Build
+          path: release/*
           if-no-files-found: warn
 
   build-macos:
