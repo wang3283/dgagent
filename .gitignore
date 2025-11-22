@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+release/
+*.dmg
+*.exe
+*.zip
+*.blockmap
+
+# Temporary files
+temp-knowledge-lancedb/
+knowledge-lancedb/
+*.log
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# User data (for testing)
+config.json
+conversations.json
+documents.json
+summaries.json
+

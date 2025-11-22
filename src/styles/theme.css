@@ -1,0 +1,106 @@
+/* Design System - Professional IDE Style (Cursor-like) */
+
+:root {
+  /* Light Theme - Clean & Crisp */
+  --bg-app: #ffffff;
+  --bg-sidebar: #f4f4f5; /* Zinc 100 */
+  --bg-activity: #e4e4e7; /* Zinc 200 */
+  --bg-hover: #f4f4f5;
+  --bg-active: #e4e4e7;
+  --bg-input: #ffffff;
+  --bg-tooltip: #18181b;
+  
+  --text-primary: #18181b; /* Zinc 900 */
+  --text-secondary: #71717a; /* Zinc 500 */
+  --text-muted: #a1a1aa; /* Zinc 400 */
+  --text-inverse: #ffffff;
+  
+  --border-primary: #e4e4e7; /* Zinc 200 */
+  --border-secondary: #f4f4f5;
+  
+  --accent: #000000; /* Monochrome accent for pro look */
+  --accent-hover: #27272a;
+  --accent-text: #ffffff;
+  
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+  
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+[data-theme='dark'] {
+  /* Dark Theme - Deep & Immersive (Cursor-like) */
+  --bg-app: #09090b; /* Very deep black/zinc */
+  --bg-sidebar: #09090b; /* Same as app for unified look, or slightly lighter */
+  --bg-activity: #18181b;
+  --bg-hover: #27272a;
+  --bg-active: #27272a;
+  --bg-input: #18181b;
+  --bg-tooltip: #ffffff;
+  
+  --text-primary: #e4e4e7; /* Zinc 200 */
+  --text-secondary: #a1a1aa; /* Zinc 400 */
+  --text-muted: #52525b; /* Zinc 600 */
+  --text-inverse: #09090b;
+  
+  --border-primary: #27272a; /* Zinc 800 */
+  --border-secondary: #18181b; /* Zinc 900 */
+  
+  --accent: #3b82f6; /* Cursor Blue */
+  --accent-hover: #60a5fa;
+  --accent-text: #ffffff;
+  
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: transparent;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  transition: background-color 0.15s ease;
+}
+
+/* Scrollbar - Ultra minimal */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
