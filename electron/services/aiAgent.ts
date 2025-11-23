@@ -303,10 +303,13 @@ IMPORTANT RULES:
             attachments
         );
 
+        // Ensure userContent is properly formatted
+        const formattedContent = userContent || 'Hello';
+        
         const messages = [
             new SystemMessage(systemPrompt),
             ...historyMessages,
-            typeof userContent === 'string' ? new HumanMessage(userContent) : new HumanMessage({ content: userContent })
+            new HumanMessage(formattedContent)
         ];
         
         console.log(`[AIAgent] Prepared ${messages.length} messages for model`);
@@ -359,9 +362,12 @@ Context from Chat: ${context.conversationHistory}`;
 
       const userContent = await this.buildUserMessageContent(userMessage, attachments);
 
+      // Ensure userContent is properly formatted
+      const formattedContent = userContent || 'Hello';
+      
       const messages: any[] = [
         new SystemMessage(systemPrompt),
-        typeof userContent === 'string' ? new HumanMessage(userContent) : new HumanMessage({ content: userContent })
+        new HumanMessage(formattedContent)
       ];
 
       if (onStep) onStep({ type: 'thinking', content: 'Analyzing request...' });
@@ -407,10 +413,14 @@ Context from Chat: ${context.conversationHistory}`;
             
             // Handle "fake" tools that models sometimes invent for final response
             if (['respond', 'answer', 'reply', 'final_answer', 'response'].includes(toolName)) {
-                finalResponse = toolCallData.response || toolCallData.answer || toolCallData.content || toolCallData.reply || (typeof toolArgs === 'string' ? toolArgs : JSON.stringify(toolArgs));
+                finalResponse = toolCallData.response || toolCallData.answer || toolCallData.content || toolCallData.reply || (typeof toolArgs === 'string' ? toolArgs : JSON.stringify(toolArgs)) || '';
                 // If the response is in args (e.g. { "tool": "respond", "args": { "text": "..." } })
-                if (typeof finalResponse === 'object' && finalResponse !== null) {
+                if (typeof finalResponse === 'object' && finalResponse !== null && finalResponse !== undefined) {
                     finalResponse = (finalResponse as any).text || (finalResponse as any).message || (finalResponse as any).content || JSON.stringify(finalResponse);
+                }
+                // Ensure finalResponse is a string
+                if (!finalResponse || typeof finalResponse !== 'string') {
+                    finalResponse = 'I apologize, but I encountered an issue generating a response.';
                 }
                 break; // Exit loop and return this response
             }
