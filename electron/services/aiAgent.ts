@@ -289,24 +289,43 @@ IMPORTANT RULES:
         const recentMessages = conversationManager.getRecentMessages(4);
         console.log(`[AIAgent] Recent messages count: ${recentMessages.length}`);
         
-        const historyMessages = recentMessages.slice(0, -1).map((msg, idx) => {
-            if (!msg || !msg.content) {
-              console.warn(`[AIAgent] Invalid message at index ${idx}:`, msg);
-              return null;
+        const historyMessages: any[] = [];
+        for (let i = 0; i < recentMessages.length - 1; i++) {
+            const msg = recentMessages[i];
+            if (!msg || typeof msg.content !== 'string') {
+              console.warn(`[AIAgent] Invalid message at index ${i}:`, msg);
+              continue;
             }
-            if (msg.role === 'user') return new HumanMessage(msg.content);
-            return new AIMessage(msg.content);
-        }).filter(m => m !== null);
+            try {
+              if (msg.role === 'user') {
+                historyMessages.push(new HumanMessage(msg.content));
+              } else {
+                historyMessages.push(new AIMessage(msg.content));
+              }
+            } catch (err) {
+              console.error(`[AIAgent] Failed to create message at index ${i}:`, err);
+            }
+        }
 
         const userContent = await this.buildUserMessageContent(
             `${contextBlock}\nUser Question: ${userMessage}`,
             attachments
         );
 
-        // Ensure userContent is properly formatted
-        const formattedContent = userContent || 'Hello';
+        // Ensure userContent is a valid string
+        let formattedContent: string;
+        if (typeof userContent === 'string') {
+          formattedContent = userContent;
+        } else if (Array.isArray(userContent)) {
+          // For multimodal content, convert to string for now
+          formattedContent = JSON.stringify(userContent);
+        } else {
+          formattedContent = 'Hello';
+        }
         
-        const messages = [
+        console.log(`[AIAgent] User content type: ${typeof userContent}, formatted: ${typeof formattedContent}`);
+        
+        const messages: any[] = [
             new SystemMessage(systemPrompt),
             ...historyMessages,
             new HumanMessage(formattedContent)
@@ -362,8 +381,18 @@ Context from Chat: ${context.conversationHistory}`;
 
       const userContent = await this.buildUserMessageContent(userMessage, attachments);
 
-      // Ensure userContent is properly formatted
-      const formattedContent = userContent || 'Hello';
+      // Ensure userContent is a valid string
+      let formattedContent: string;
+      if (typeof userContent === 'string') {
+        formattedContent = userContent;
+      } else if (Array.isArray(userContent)) {
+        // For multimodal content, convert to string for now
+        formattedContent = JSON.stringify(userContent);
+      } else {
+        formattedContent = userMessage || 'Hello';
+      }
+      
+      console.log(`[AIAgent] Agent mode - User content type: ${typeof userContent}, formatted: ${typeof formattedContent}`);
       
       const messages: any[] = [
         new SystemMessage(systemPrompt),
