@@ -306,7 +306,7 @@ IMPORTANT RULES:
         const messages = [
             new SystemMessage(systemPrompt),
             ...historyMessages,
-            new HumanMessage({ content: userContent })
+            typeof userContent === 'string' ? new HumanMessage(userContent) : new HumanMessage({ content: userContent })
         ];
         
         console.log(`[AIAgent] Prepared ${messages.length} messages for model`);
@@ -361,7 +361,7 @@ Context from Chat: ${context.conversationHistory}`;
 
       const messages: any[] = [
         new SystemMessage(systemPrompt),
-        new HumanMessage({ content: userContent })
+        typeof userContent === 'string' ? new HumanMessage(userContent) : new HumanMessage({ content: userContent })
       ];
 
       if (onStep) onStep({ type: 'thinking', content: 'Analyzing request...' });
