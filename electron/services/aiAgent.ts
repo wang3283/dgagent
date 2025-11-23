@@ -287,10 +287,16 @@ IMPORTANT RULES:
 
         // Convert history to LangChain messages
         const recentMessages = conversationManager.getRecentMessages(4);
-        const historyMessages = recentMessages.slice(0, -1).map(msg => {
+        console.log(`[AIAgent] Recent messages count: ${recentMessages.length}`);
+        
+        const historyMessages = recentMessages.slice(0, -1).map((msg, idx) => {
+            if (!msg || !msg.content) {
+              console.warn(`[AIAgent] Invalid message at index ${idx}:`, msg);
+              return null;
+            }
             if (msg.role === 'user') return new HumanMessage(msg.content);
             return new AIMessage(msg.content);
-        });
+        }).filter(m => m !== null);
 
         const userContent = await this.buildUserMessageContent(
             `${contextBlock}\nUser Question: ${userMessage}`,
@@ -303,9 +309,16 @@ IMPORTANT RULES:
             new HumanMessage({ content: userContent })
         ];
         
+        console.log(`[AIAgent] Prepared ${messages.length} messages for model`);
         if (onStep) onStep({ type: 'thinking', content: 'Thinking...' });
         
         const response = await model.invoke(messages);
+        console.log(`[AIAgent] Got response from model`);
+        
+        if (!response || !response.content) {
+          throw new Error('Invalid response from model: missing content');
+        }
+        
         const finalResponse = response.content as string;
         
         conversationManager.addMessage('assistant', finalResponse);
