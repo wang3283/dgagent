@@ -89,29 +89,61 @@ jobs:
           path: release/*.zip
           if-no-files-found: warn
 
-  # Optional: Create release when tag is pushed
   release:
     needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
     
     steps:
-      - name: Download all artifacts
+      - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: DGAgent-Windows-Build
+          path: artifacts/windows
 
-      - name: Display structure of downloaded files
-        run: ls -R artifacts
+      - name: Download macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: DGAgent-macOS-DMG
+          path: artifacts/macos
+
+      - name: Download macOS ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: DGAgent-macOS-ZIP
+          path: artifacts/macos-zip
+
+      - name: Create Tag for Main Build
+        if: github.ref == 'refs/heads/main'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'tags/nightly'
+              })
+            } catch (e) {}
+            
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/nightly',
+              sha: context.sha
+            })
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Nightly Build' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'nightly' }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.dmg
-            artifacts/**/*.zip
-          draft: false
-          prerelease: false
+            artifacts/windows/**/*.exe
+            artifacts/macos/**/*.dmg
+            artifacts/macos-zip/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
