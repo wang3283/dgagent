@@ -642,7 +642,7 @@ function App() {
       setCurrentConversation(updated)
       
       // Auto-play AI voice reply if enabled
-      if (config.enableVoiceReply && updated.messages.length > 0) {
+      if (config.enableVoiceReply && updated && updated.messages && updated.messages.length > 0) {
         const lastMessage = updated.messages[updated.messages.length - 1]
         if (lastMessage.role === 'assistant') {
           await playAIResponse(lastMessage.content)
