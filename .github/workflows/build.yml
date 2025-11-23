@@ -98,18 +98,21 @@ jobs:
         with:
           name: DGAgent-Windows-Installer
           path: artifacts/windows
+        continue-on-error: true
 
       - name: Download macOS DMG
         uses: actions/download-artifact@v4
         with:
           name: DGAgent-macOS-DMG
           path: artifacts/macos
+        continue-on-error: true
 
       - name: Download macOS ZIP
         uses: actions/download-artifact@v4
         with:
           name: DGAgent-macOS-ZIP
           path: artifacts/macos-zip
+        continue-on-error: true
 
       - name: Create Tag for Main Build
         if: github.ref == 'refs/heads/main'
