@@ -23,6 +23,7 @@
       "node_modules/@ffmpeg-installer/**/*"
     ],
     "buildDependenciesFromSource": false,
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
