@@ -357,11 +357,12 @@ ipcMain.handle('voice-to-text', async (_, audioPath: string) => {
   }
 });
 
-ipcMain.handle('text-to-speech', async (_, text: string) => {
+ipcMain.handle('text-to-speech', async (_, text: string, voiceType?: string) => {
   try {
     // Use Edge TTS (free and high quality)
-    // Default to Xiaoxiao (Warm) for Chinese
-    return await ttsService.generateAudio(text, 'zh-CN-XiaoxiaoNeural');
+    // Default to Xiaoxiao (Warm) for Chinese if no voice provided
+    const voice = voiceType || 'zh-CN-XiaoxiaoNeural';
+    return await ttsService.generateAudio(text, voice);
   } catch (error) {
     console.error('text-to-speech error:', error);
     throw error;

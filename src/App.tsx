@@ -406,9 +406,11 @@ function App() {
         return
       }
 
-      // Otherwise use paid API
+      // Otherwise use paid API (now replaced by Edge TTS in backend)
       setIsPlayingAudio(true)
-      const audioPath = await window.ipcRenderer.invoke('text-to-speech', text)
+      // Pass voice type from config
+      const voice = config.voiceType || 'zh-CN-XiaoxiaoNeural';
+      const audioPath = await window.ipcRenderer.invoke('text-to-speech', text, voice)
       
       const audio = new Audio(`file://${audioPath}`)
       audioRef.current = audio
@@ -1713,8 +1715,8 @@ function App() {
               {config.enableVoiceReply && (
                 <div className="setting-row">
                   <div className="setting-info">
-                    <div className="setting-title">Use TTS API</div>
-                    <div className="setting-desc">Natural voice but paid (~¥0.015/1K chars)</div>
+                    <div className="setting-title">Use Natural Voice</div>
+                    <div className="setting-desc">High quality neural voice (Edge TTS, Free)</div>
                   </div>
                   <label className="toggle-switch">
                     <input
@@ -1729,17 +1731,15 @@ function App() {
 
               {!config.useBrowserTTS && config.enableVoiceReply && (
                 <div className="setting-group" style={{marginTop: '16px'}}>
-                  <label>Voice Type (API)</label>
+                  <label>Voice Personality</label>
                   <select 
                     value={config.voiceType}
                     onChange={(e) => setConfig({...config, voiceType: e.target.value})}
                   >
-                    <option value="alloy">Alloy (Neutral)</option>
-                    <option value="echo">Echo (Male)</option>
-                    <option value="fable">Fable (British)</option>
-                    <option value="onyx">Onyx (Deep)</option>
-                    <option value="nova">Nova (Female)</option>
-                    <option value="shimmer">Shimmer (Gentle)</option>
+                    <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao (Warm & Natural)</option>
+                    <option value="zh-CN-YunxiNeural">Yunxi (Lively Boy)</option>
+                    <option value="zh-CN-YunjianNeural">Yunjian (Sports Male)</option>
+                    <option value="zh-CN-YunyangNeural">Yunyang (News Anchor)</option>
                   </select>
                 </div>
               )}
