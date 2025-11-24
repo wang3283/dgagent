@@ -598,6 +598,28 @@ function App() {
     
     setProcessingStatus('Preparing message...')
 
+    // Optimistic UI update: Show user message immediately
+    const optimisticUserMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userDisplayMsg,
+      timestamp: Date.now(),
+      attachments: filesToProcess.length > 0 ? filesToProcess : undefined
+    };
+
+    setCurrentConversation(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        messages: [...prev.messages, optimisticUserMsg]
+      };
+    });
+
+    // Scroll to bottom immediately
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+
     try {
       // Parse and extract content from attached files (for AI)
       if (filesToProcess.length > 0) {

@@ -303,6 +303,12 @@ INTERACTION RULES:
 2. **No Meta-Talk**: Do not explain *how* you are answering (e.g., "I will now process your request"). Just provide the result.
 3. **Identity**: If asked "Who are you?", answer simply that you are ${agentName}.
 
+**AUTO-ESCALATION (CRITICAL):**
+If the user asks for something that requires TOOLS you don't have in this mode (e.g., reading local files, searching personal knowledge base, searching PubMed, complex multi-step planning), DO NOT say "I cannot do that".
+Instead, output EXACTLY and ONLY this string:
+\`[NEEDS_AGENT_CAPABILITIES]\`
+This will automatically switch the system to Agent mode to handle the request.
+
 Your goal is to make the user feel understood and efficiently supported, providing a "Pro" experience similar to leading AI models.`;
 
         // In Chat mode, we don't automatically inject KB context
@@ -310,11 +316,30 @@ Your goal is to make the user feel understood and efficiently supported, providi
         const contextBlock = '';
 
         // Convert history to LangChain messages
-        const recentMessages = conversationManager.getRecentMessages(4);
-        const historyMessages = recentMessages.slice(0, -1).map(msg => {
-            if (msg.role === 'user') return new HumanMessage(msg.content);
-            return new AIMessage(msg.content);
-        });
+        const recentMessages = conversationManager.getRecentMessages(20);
+        console.log(`[AIAgent] Recent messages count: ${recentMessages.length}`);
+        
+        const historyMessages: any[] = [];
+        for (let i = 0; i < recentMessages.length - 1; i++) {
+            const msg = recentMessages[i];
+            if (!msg || typeof msg.content !== 'string') {
+              console.warn(`[AIAgent] Invalid message at index ${i}:`, msg);
+              continue;
+            }
+            try {
+              // Only add messages that have content
+              if (msg.content.trim().length > 0) {
+                if (msg.role === 'user') {
+                  historyMessages.push(new HumanMessage(msg.content));
+                } else {
+                  historyMessages.push(new AIMessage(msg.content));
+                }
+              }
+            } catch (err) {
+              console.error(`[AIAgent] Failed to create message at index ${i}:`, err);
+            }
+        }
+        console.log(`[AIAgent] Constructed ${historyMessages.length} history messages`);
 
         const userContent = await this.buildUserMessageContent(
             `${contextBlock}\nUser Question: ${userMessage}`,
@@ -331,6 +356,15 @@ Your goal is to make the user feel understood and efficiently supported, providi
         
         const response = await model.invoke(messages);
         const finalResponse = response.content as string;
+        
+        // Check for auto-escalation signal
+        if (finalResponse.includes('[NEEDS_AGENT_CAPABILITIES]')) {
+            console.log('[AIAgent] Auto-escalating to Agent mode...');
+            if (onStep) onStep({ type: 'thinking', content: 'Switching to Agent mode for advanced capabilities...' });
+            
+            // Recursively call chat in AGENT mode
+            return this.chat(userMessage, attachments, onStep, 'agent');
+        }
         
         conversationManager.addMessage('assistant', finalResponse);
         if (isFirstMessage && currentConv) this.generateConversationTitle(currentConv.id, userMessage, finalResponse);

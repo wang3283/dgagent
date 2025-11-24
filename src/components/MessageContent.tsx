@@ -6,14 +6,18 @@ interface MessageContentProps {
 }
 
 export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
-  // Extract thinking block
-  const thinkingMatch = content.match(/<thinking>([\s\S]*?)<\/thinking>/);
-  const thinkingContent = thinkingMatch ? thinkingMatch[1].trim() : null;
+  // Extract thinking block - support multiple formats
+  // Matches: <thinking>...</thinking>, <think>...</think>, <思考>...</思考>
+  // Also handles mismatched tags like <思考>...</think>
+  const thinkingRegex = /<(thinking|think|思考)>([\s\S]*?)<\/(thinking|think|思考)>/i;
+  const thinkingMatch = content.match(thinkingRegex);
+  
+  const thinkingContent = thinkingMatch ? thinkingMatch[2].trim() : null;
   
   // Remove thinking block from main content
-  const mainContent = content.replace(/<thinking>([\s\S]*?)<\/thinking>/g, '').trim();
+  const mainContent = content.replace(thinkingRegex, '').trim();
   
-  const [isThinkingOpen, setIsThinkingOpen] = useState(true);
+  const [isThinkingOpen, setIsThinkingOpen] = useState(false); // Default to closed for cleaner look
 
   return (
     <div className="message-content-wrapper">
@@ -59,7 +63,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
         </div>
       )}
       
-      <div className="main-content" style={{ whiteSpace: 'pre-wrap' }}>
+      <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>
         {mainContent || (thinkingContent ? '' : content)}
       </div>
     </div>
