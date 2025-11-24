@@ -400,31 +400,9 @@ function App() {
 
   // Play AI response as speech
   const playAIResponse = async (text: string) => {
-    try {
-      // Use browser's free TTS if enabled
-      if (config.useBrowserTTS) {
-        playBrowserTTS(text)
-        return
-      }
-
-      // Otherwise use paid API (now replaced by Edge TTS in backend)
-      setIsPlayingAudio(true)
-      // Pass voice type from config
-      const voice = config.voiceType || 'zh-CN-XiaoxiaoNeural';
-      const audioPath = await window.ipcRenderer.invoke('text-to-speech', text, voice)
-      
-      const audio = new Audio(`file://${audioPath}`)
-      audioRef.current = audio
-      
-      audio.onended = () => {
-        setIsPlayingAudio(false)
-      }
-      
-      audio.play()
-    } catch (error) {
-      console.error('Failed to play AI voice:', error)
-      setIsPlayingAudio(false)
-    }
+    // FORCE USE Browser TTS to ensure stability
+    // Backend TTS is currently unreliable due to provider blocking
+    playBrowserTTS(text)
   }
 
   // Browser's free text-to-speech (Web Speech API)
