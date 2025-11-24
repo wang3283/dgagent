@@ -415,8 +415,9 @@ Your goal is to make the user feel understood and efficiently supported, providi
 - **Directness**: Do not chatter. Just do the work.
 - **Format**: Always output the JSON tool call block exactly as required.
 
-**RESPONSE FORMAT:**
-To use a tool:
+**RESPONSE FORMAT (STRICT):**
+
+1. **To use a tool** (ONLY when you need to perform an action):
 \`\`\`json
 {
   "tool": "tool_name",
@@ -424,7 +425,14 @@ To use a tool:
 }
 \`\`\`
 
-If no tool is needed, reply naturally and professionally.`;
+2. **To give a final answer** (When you have the info or don't need tools):
+- DO NOT use JSON.
+- DO NOT use <|begin_of_box|> or similar tags.
+- JUST WRITE THE TEXT response naturally.
+
+Example of Final Answer:
+<thinking>I have the info. I will answer directly.</thinking>
+Elon Musk is a prominent entrepreneur...`;
 
       const userContent = await this.buildUserMessageContent(userMessage, attachments);
 
@@ -484,24 +492,42 @@ If no tool is needed, reply naturally and professionally.`;
             }
             
             const toolCallData = JSON.parse(jsonStr);
-            const toolName = toolCallData.tool;
+            let toolName = toolCallData.tool;
             const toolArgs = toolCallData.args || {};
             
+            // Clean up toolName (remove any potential tags like <|begin_of_box|>)
+            if (toolName && typeof toolName === 'string') {
+                toolName = toolName.replace(/<\|.*?\|>/g, '').trim();
+            }
+
             // Check if toolName is valid
-            if (!toolName || toolName === 'null' || toolName === 'undefined') {
-                console.warn(`[AIAgent] Invalid tool name: ${toolName}, treating as content`);
-                finalResponse = content;
+            if (!toolName || toolName === 'null' || toolName === 'undefined' || toolName === 'respond' || toolName === 'answer' || toolName === 'final_answer' || toolName === 'response') {
+                console.log(`[AIAgent] Treating non-tool JSON as content: ${toolName}`);
+                
+                // Try to extract response from args if possible
+                if (toolCallData.response || toolCallData.answer || toolCallData.content) {
+                    finalResponse = toolCallData.response || toolCallData.answer || toolCallData.content;
+                } else if (typeof toolArgs === 'string') {
+                    finalResponse = toolArgs;
+                } else {
+                    finalResponse = content; // Fallback to full content
+                }
+                
+                // Clean up final response if it has tags
+                if (typeof finalResponse === 'string') {
+                    finalResponse = finalResponse.replace(/<\|.*?\|>/g, '').trim();
+                }
+                
                 break;
             }
             
-            // Handle "fake" tools that models sometimes invent for final response
-            if (['respond', 'answer', 'reply', 'final_answer', 'response'].includes(toolName)) {
-                finalResponse = toolCallData.response || toolCallData.answer || toolCallData.content || toolCallData.reply || (typeof toolArgs === 'string' ? toolArgs : JSON.stringify(toolArgs));
-                // If the response is in args (e.g. { "tool": "respond", "args": { "text": "..." } })
-                if (typeof finalResponse === 'object' && finalResponse !== null) {
-                    finalResponse = (finalResponse as any).text || (finalResponse as any).message || (finalResponse as any).content || JSON.stringify(finalResponse);
-                }
-                break; // Exit loop and return this response
+            // Check if it is a real tool
+            const isRealTool = tools.some(t => t.name === toolName) || ['search_pubmed', 'search_web', 'search_pubmed_full', 'search_knowledge_base'].includes(toolName);
+            
+            if (!isRealTool) {
+                 console.warn(`[AIAgent] Unknown tool: ${toolName}, treating as final response`);
+                 finalResponse = content;
+                 break;
             }
 
             if (onStep) onStep({ type: 'action', content: `Calling tool: ${toolName}` });
