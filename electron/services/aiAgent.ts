@@ -8,6 +8,7 @@ import fs from 'fs/promises';
 import { globalConfig } from '../config/globalConfig';
 import { knowledgeBase } from './knowledgeBase';
 import { conversationManager } from './conversationManager';
+import { pythonService } from './pythonService';
 
 // Tools
 const readFileTool = tool(
@@ -71,6 +72,50 @@ export class AIAgentService {
         baseURL: config.baseUrl
       }
     });
+  }
+
+  // Generate image using OpenAI/compatible API
+  private async generateImage(prompt: string): Promise<string> {
+    try {
+      const config = globalConfig.getConfig();
+      if (!config.apiKey) {
+        return "Error: API Key is missing. Please configure it in Settings.";
+      }
+
+      console.log(`[AIAgent] Generating image for prompt: ${prompt}`);
+      
+      // Use configured base URL or default OpenAI
+      const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+      const url = `${baseUrl}/images/generations`.replace('//images', '/images'); // Handle potential double slash if baseUrl ends with /
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: "dall-e-3", // Default to dall-e-3, many APIs map this to their best model
+          prompt: prompt,
+          n: 1,
+          size: "1024x1024"
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Image generation failed: ${error}`);
+      }
+
+      const data = await response.json();
+      const imageUrl = data.data[0].url;
+      
+      // Return markdown image syntax
+      return `Here is the generated image:\n\n![${prompt}](${imageUrl})`;
+    } catch (error) {
+      console.error('[AIAgent] Image generation error:', error);
+      return `Failed to generate image: ${(error as Error).message}`;
+    }
   }
 
   // PubMed Search Helper
@@ -418,13 +463,17 @@ Your goal is to make the user feel understood and efficiently supported, providi
 1. create_plan: Use for multi-step complex tasks.
 2. read_file: Read local files.
 3. mark_step_completed: Track progress.
-4. search_knowledge_base: **Proactively** use this for ANY question that might rely on user's personal data/notes/history. Don't wait to be asked.
+4. search_knowledge_base: **Proactively** use this for ANY question that might rely on user's personal data. Arguments: { "query": "KEYWORD_ONLY string (e.g. 'project deadline', NOT 'what is the deadline') - optimized for search engine" }
 5. search_pubmed / search_pubmed_full: For scientific research.
+6. run_python: Execute Python code. Use for math, data analysis, or complex logic. Arguments: { "code": "print('hello')" }
+7. generate_image: Generate images using DALL-E 3. Arguments: { "prompt": "detailed description of image" }
 
 **CRITICAL BEHAVIORAL RULES:**
 - **Context Distinction**: 
   - If question is about user's data (e.g., "my notes", "project docs"), use 'search_knowledge_base'.
   - If question is GENERAL KNOWLEDGE (e.g., "Who is Elon Musk?", "Python tutorial"), DO NOT search knowledge base. Answer directly.
+  - If question involves MATH or DATA (e.g., "Calculate fibonacci", "Analyze this list"), use 'run_python'.
+  - If question asks to DRAW or GENERATE IMAGE, use 'generate_image'.
 - **Fallback**: If you search the knowledge base and find NOTHING relevant, DO NOT say "I found nothing". Instead, ANSWER the question using your own general knowledge.
 - **Efficiency**: Solve the problem in the fewest steps possible.
 - **Directness**: Do not chatter. Just do the work.
@@ -486,12 +535,17 @@ Elon Musk is a prominent entrepreneur...`;
         // 1. Try standard markdown json block
         let jsonMatch = content.match(/```json\s*(\{[\s\S]*?\})\s*```/);
         
-        // 2. Try just markdown block without json tag
+        // 2. Try markdown block without json tag (or any tag)
         if (!jsonMatch) {
-            jsonMatch = content.match(/```\s*(\{[\s\S]*"tool"[\s\S]*\})\s*```/);
+            jsonMatch = content.match(/```\w*\s*(\{[\s\S]*"tool"[\s\S]*?\})\s*```/);
+        }
+
+        // 3. Try unclosed markdown block (common issue)
+        if (!jsonMatch) {
+             jsonMatch = content.match(/```\w*\s*(\{[\s\S]*"tool"[\s\S]*\})/);
         }
         
-        // 3. Try raw json in text (looking for tool key, loosely)
+        // 4. Try raw json in text (looking for tool key, loosely)
         if (!jsonMatch) {
             // Relaxed regex: just look for a JSON object containing "tool": "..."
             jsonMatch = content.match(/(\{[\s\S]*"tool"\s*:[\s\S]*\})/);
@@ -590,6 +644,20 @@ Elon Musk is a prominent entrepreneur...`;
                 } catch (e) {
                     output = `Knowledge base search failed: ${e}`;
                 }
+            } else if (toolName === 'run_python') {
+                try {
+                    if (onStep) onStep({ type: 'action', content: 'Executing Python code...' });
+                    output = await pythonService.runCode(toolArgs.code);
+                } catch (e) {
+                    output = `Python execution failed: ${e}`;
+                }
+            } else if (toolName === 'generate_image') {
+                try {
+                    if (onStep) onStep({ type: 'action', content: 'Generating image...' });
+                    output = await this.generateImage(toolArgs.prompt);
+                } catch (e) {
+                    output = `Image generation failed: ${e}`;
+                }
             } else {
                 // Handle standard tools
                 const selectedTool = tools.find(t => t.name === toolName);
@@ -639,6 +707,11 @@ Elon Musk is a prominent entrepreneur...`;
         this.generateConversationTitle(currentConv.id, userMessage, finalResponse);
       }
       
+      // Trigger background memory update if needed
+      if (currentConv) {
+        this.backgroundUpdateSummary(currentConv.id).catch(console.error);
+      }
+      
       return finalResponse;
     } catch (error) {
       console.error('[AIAgent] Error in chat:', error);
@@ -654,8 +727,8 @@ Elon Musk is a prominent entrepreneur...`;
       const model = this.getModel();
       const titlePrompt = `Based on this conversation, generate a short, concise title (3-6 words maximum) that captures the main topic.
 
-User: ${userMessage}
-Assistant: ${assistantResponse}
+User: {userMessage}
+Assistant: {assistantResponse}
 
 Generate ONLY the title, nothing else. Make it descriptive and concise.
 
@@ -663,7 +736,10 @@ Title:`;
 
       const chain = PromptTemplate.fromTemplate(titlePrompt).pipe(model).pipe(new StringOutputParser());
       
-      const title = await chain.invoke({});
+      const title = await chain.invoke({
+        userMessage: userMessage,
+        assistantResponse: assistantResponse
+      });
       const cleanTitle = title.trim().replace(/^["']|["']$/g, '').substring(0, 60);
       
       console.log(`[AIAgent] Generated title: "${cleanTitle}"`);
@@ -673,6 +749,50 @@ Title:`;
       // Fallback to simple title
       const fallbackTitle = userMessage.substring(0, 40) + (userMessage.length > 40 ? '...' : '');
       conversationManager.updateConversationTitle(conversationId, fallbackTitle);
+    }
+  }
+
+  // Background task to summarize old messages into long-term memory
+  private async backgroundUpdateSummary(conversationId: string): Promise<void> {
+    try {
+      const conversation = conversationManager.getConversation(conversationId);
+      if (!conversation || conversation.messages.length < 20) return;
+
+      // Only summarize if we haven't summarized recently (or every 10 messages)
+      if (conversation.messages.length % 10 !== 0) return;
+
+      console.log('[AIAgent] Updating conversation memory summary...');
+      
+      // Summarize the first N messages that are not yet summarized
+      // For simplicity, we just summarize the whole history excluding the very recent context
+      const messagesToSummarize = conversation.messages.slice(0, -10); // Keep last 10 as active context
+      
+      if (messagesToSummarize.length === 0) return;
+
+      const historyText = messagesToSummarize
+        .map(m => `${m.role}: ${m.content}`)
+        .join('\n');
+
+      const prompt = `Summarize the following conversation history into a concise paragraph (Memory).
+Focus on key facts, user preferences, and important decisions. Ignore casual chit-chat.
+
+History:
+${historyText.substring(0, 5000)}
+
+Summary:`;
+
+      const model = this.getModel();
+      const summary = await model.invoke(prompt);
+      const summaryText = summary.content as string;
+
+      // Save to metadata
+      conversationManager.updateConversationMetadata(conversationId, {
+        summary: summaryText
+      });
+      
+      console.log('[AIAgent] Memory summary updated');
+    } catch (error) {
+      console.error('[AIAgent] Failed to update summary:', error);
     }
   }
 

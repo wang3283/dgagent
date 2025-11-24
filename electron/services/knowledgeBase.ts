@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as lancedb from '@lancedb/lancedb';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import MiniSearch from 'minisearch';
 import { globalConfig } from '../config/globalConfig';
 
 // Store data in the user's userData directory
@@ -25,12 +26,25 @@ export interface AIConfig {
 export class KnowledgeBaseService {
   private db: lancedb.Connection | null = null;
   private table: lancedb.Table | null = null;
-  private documents: Array<{ text: string; metadata: Record<string, any> }> = [];
+  private documents: Array<{ id: string; text: string; metadata: Record<string, any> }> = [];
+  private miniSearch: MiniSearch;
   private readonly SIMPLE_STORAGE_PATH: string;
 
   constructor() {
     this.ensureDbDir();
     this.SIMPLE_STORAGE_PATH = path.join(DB_PATH, 'documents.json');
+    
+    // Initialize MiniSearch
+    this.miniSearch = new MiniSearch({
+      fields: ['text', 'source'], // fields to index for full-text search
+      storeFields: ['text', 'metadata'], // fields to return with search results
+      searchOptions: {
+        boost: { source: 2 }, // boost 'source' (filename) matches
+        fuzzy: 0.2, // allow minor typos
+        prefix: true
+      }
+    });
+
     this.loadDocuments();
   }
 
@@ -45,7 +59,18 @@ export class KnowledgeBaseService {
       if (fs.existsSync(this.SIMPLE_STORAGE_PATH)) {
         const data = fs.readFileSync(this.SIMPLE_STORAGE_PATH, 'utf-8');
         this.documents = JSON.parse(data);
-        console.log(`[KB] Loaded ${this.documents.length} documents from storage`);
+        
+        // Rebuild MiniSearch index
+        if (this.documents.length > 0) {
+          this.miniSearch.addAll(this.documents.map(doc => ({
+            id: doc.id || Math.random().toString(36).substring(7),
+            text: doc.text,
+            source: doc.metadata?.source || '',
+            metadata: doc.metadata
+          })));
+        }
+        
+        console.log(`[KB] Loaded ${this.documents.length} documents and indexed in MiniSearch`);
       }
     } catch (error) {
       console.error('[KB] Failed to load documents:', error);
@@ -119,12 +144,24 @@ export class KnowledgeBaseService {
 
     // Always store in simple storage (as backup and for direct reading)
     for (const doc of docs) {
-      this.documents.push({
+      const id = Math.random().toString(36).substring(7);
+      const docEntry = {
+        id,
         text: doc.pageContent,
         metadata: {
           ...metadata,
           timestamp: Date.now()
         }
+      };
+      
+      this.documents.push(docEntry);
+      
+      // Add to MiniSearch
+      this.miniSearch.add({
+        id,
+        text: docEntry.text,
+        source: (metadata.source as string) || '',
+        metadata: docEntry.metadata
       });
     }
     this.saveDocuments();
@@ -170,93 +207,18 @@ export class KnowledgeBaseService {
     }
   }
 
-  // Legacy method for vector-based storage (kept for future use)
-  private async addDocumentWithEmbedding(text: string, metadata: Record<string, any>) {
-    await this.initDB();
-    
-    // 1. Split text
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
-    });
-    const docs = await splitter.createDocuments([text], [metadata]);
-
-    // 2. Embed
-    const embeddingsModel = await this.getEmbeddings();
-    
-    const dataToInsert = [];
-    for (const doc of docs) {
-      const vector = await embeddingsModel.embedQuery(doc.pageContent);
-      dataToInsert.push({
-        vector,
-        text: doc.pageContent,
-        source: metadata.source || 'unknown',
-        type: metadata.type || 'text',
-        timestamp: Date.now()
-      });
-    }
-
-    // 3. Insert into LanceDB
-    if (!this.table) {
-      // Create table with the first batch of data
-      this.table = await this.db!.createTable('documents', dataToInsert);
-    } else {
-      await this.table.add(dataToInsert);
-    }
-
-    return dataToInsert.length; // Return number of chunks added
-  }
-
-  // Keyword-based search (fallback mode)
+  // Keyword-based search (legacy, now using MiniSearch)
   private keywordSearch(query: string, limit: number = 10) {
-    const queryLower = query.toLowerCase();
-    const keywords = queryLower.split(/\s+/).filter(k => k.length > 1);
-    
-    console.log(`[KB] Using keyword search with keywords:`, keywords);
-    
-    // Score each document based on keyword matches
-    const scored = this.documents.map(doc => {
-      const textLower = doc.text.toLowerCase();
-      let score = 0;
-      
-      // Count keyword occurrences
-      for (const keyword of keywords) {
-        const matches = (textLower.match(new RegExp(keyword, 'g')) || []).length;
-        score += matches;
-      }
-      
-      // Boost score if keyword appears in metadata
-      const metadataStr = JSON.stringify(doc.metadata).toLowerCase();
-      for (const keyword of keywords) {
-        if (metadataStr.includes(keyword)) {
-          score += 2;
-        }
-      }
-      
-      return { doc, score };
-    });
-    
-    // Sort by score and return top results
-    const results = scored
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(item => ({
-        text: item.doc.text,
-        ...item.doc.metadata,
-        score: item.score
-      }));
-    
-    console.log(`[KB] Keyword search found ${results.length} relevant documents`);
-    return results;
+    // This method is replaced by MiniSearch but kept for reference if needed
+    return [];
   }
 
   public async search(query: string, limit: number = 5) {
     const config = globalConfig.getConfig();
     let vectorResults: any[] = [];
-    let keywordResults: any[] = [];
+    let miniSearchResults: any[] = [];
     
-    // 1. Vector Search (Semantic)
+    // 1. Vector Search (Semantic) - Optional
     if (config.embeddingModel && config.embeddingModel.trim() !== '') {
       try {
         await this.initDB();
@@ -274,14 +236,24 @@ export class KnowledgeBaseService {
       }
     }
 
-    // 2. Keyword Search (Exact)
-    keywordResults = this.keywordSearch(query, limit);
+    // 2. MiniSearch (Full-text / Keyword)
+    try {
+      const results = this.miniSearch.search(query, { fuzzy: 0.2, prefix: true });
+      miniSearchResults = results.slice(0, limit).map(r => ({
+        text: r.text,
+        ...r.metadata,
+        score: r.score
+      }));
+      console.log(`[KB] MiniSearch found ${miniSearchResults.length} results`);
+    } catch (error) {
+      console.error('[KB] MiniSearch failed:', error);
+    }
     
     // 3. Hybrid Merge (Deduplicate by text content)
     // Combine results, prioritizing vector results but including unique keyword matches
     const combined = [...vectorResults];
     
-    for (const kwResult of keywordResults) {
+    for (const kwResult of miniSearchResults) {
       // Check if this text is already in vector results (fuzzy matching or exact)
       const exists = vectorResults.some(v => v.text === kwResult.text);
       if (!exists) {
@@ -289,15 +261,10 @@ export class KnowledgeBaseService {
       }
     }
     
-    // If still no results, return recent documents as fallback
+    // If still no results, return nothing (Agent will handle fallback)
     if (combined.length === 0) {
-      console.log(`[KB] No matches found, returning recent documents`);
-      return this.documents
-        .slice(-limit)
-        .map(doc => ({
-          text: doc.text,
-          ...doc.metadata
-        }));
+      console.log(`[KB] No matches found`);
+      return [];
     }
     
     // Limit total results
