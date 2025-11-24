@@ -60,12 +60,12 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '6px 12px',
-          background: 'var(--bg-surface-hover)',
+          background: '#2d2d2d', // Match code block bg slightly lighter
           borderTopLeftRadius: '6px',
           borderTopRightRadius: '6px',
-          borderBottom: '1px solid var(--border-subtle)',
+          borderBottom: '1px solid #404040',
           fontSize: '12px',
-          color: 'var(--text-secondary)'
+          color: '#a0a0a0'
         }}>
           <span>{language || 'text'}</span>
           <button 
@@ -77,7 +77,9 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
               fontSize: '11px',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '4px',
+              color: '#a0a0a0',
+              border: '1px solid transparent',
             }}
           >
             {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -92,7 +94,9 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
             color: '#d4d4d4',
             borderBottomLeftRadius: '6px',
             borderBottomRightRadius: '6px',
-            fontFamily: 'monospace'
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontSize: '13px',
+            lineHeight: '1.5'
           }}>
             {children}
           </code>
@@ -129,7 +133,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
               style={{
                 marginTop: '8px',
                 padding: '10px 12px',
-                backgroundColor: 'var(--bg-surface)',
+                backgroundColor: 'var(--bg-surface-hover)', // Slightly distinct from bg
                 border: '1px solid var(--border-subtle)',
                 borderRadius: '8px',
                 fontSize: '13px',
