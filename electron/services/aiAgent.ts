@@ -279,7 +279,11 @@ IMPORTANT RULES:
 2. You have access to "Reference Documents" below, but you are NOT the author of these documents.
 3. If the user asks "Who are you?", answer that you are ${agentName}.
 4. Do not output "User Question:" or "Answer:" headers. Just reply naturally.
-5. Be concise.`;
+5. Be concise.
+6. CRITICAL: When user asks "Can you..." or "能否..." or similar questions, DO NOT just answer "Yes/可以". Instead, DIRECTLY PERFORM the requested action. For example:
+   - User: "能否用中文回复上一个回答" → Directly provide the Chinese translation
+   - User: "Can you summarize this?" → Directly provide the summary
+   - DO NOT say "Yes, I can" and wait. Take action immediately.`;
 
         // In Chat mode, we don't automatically inject KB context
         // Users can switch to Agent mode if they need KB search
@@ -341,6 +345,7 @@ IMPORTANT INSTRUCTIONS:
 - Then execute steps one by one.
 - After each step is done, call 'mark_step_completed'.
 - If you don't need to use a tool, just reply normally.
+- CRITICAL: When user asks "Can you..." or "能否..." questions, DO NOT just answer "Yes/可以". DIRECTLY PERFORM the action or use the appropriate tool.
 
 Context from KB: ${context.knowledgeBase.substring(0, 2000)}
 Context from Chat: ${context.conversationHistory}`;
