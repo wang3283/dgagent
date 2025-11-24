@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Database, Settings, Plus, Trash2, User, Bot, Send, Loader2, FolderOpen, Save, Minimize2, X, Paperclip, File, Image as ImageIcon, Video, Mic, Volume2, StopCircle, Calendar, Sun, Moon, PenTool, Undo, Redo, Brain, Wrench, Eye, Check, RefreshCw, Download } from 'lucide-react'
 import { SummaryTab } from './components/SummaryTab'
 import { Canvas } from './components/Canvas'
+import { MessageContent } from './components/MessageContent'
 
 interface Message {
   id: string;
@@ -642,7 +643,7 @@ function App() {
       setCurrentConversation(updated)
       
       // Auto-play AI voice reply if enabled
-      if (config.enableVoiceReply && updated && updated.messages && updated.messages.length > 0) {
+      if (config.enableVoiceReply && updated.messages.length > 0) {
         const lastMessage = updated.messages[updated.messages.length - 1]
         if (lastMessage.role === 'assistant') {
           await playAIResponse(lastMessage.content)
@@ -1124,7 +1125,7 @@ function App() {
                     <div className="message-role">
                       {msg.role === 'user' ? <><User size={14} /> You</> : <><Bot size={14} /> {config.agentName}</>}
                     </div>
-                    <div className="message-content">{msg.content}</div>
+                    <MessageContent content={msg.content} />
                     {/* Export buttons for PubMed tables */}
                     {msg.role === 'assistant' && hasPubMedTable(msg.content) && (
                       <div style={{
