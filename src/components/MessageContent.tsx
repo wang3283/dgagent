@@ -15,7 +15,22 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
   const thinkingContent = thinkingMatch ? thinkingMatch[2].trim() : null;
   
   // Remove thinking block from main content
-  const mainContent = content.replace(thinkingRegex, '').trim();
+  let mainContent = content.replace(thinkingRegex, '').trim();
+  
+  // Clean up weird tags
+  mainContent = mainContent.replace(/<\|.*?\|>/g, '').trim();
+  
+  // Try to clean up JSON if it was exposed
+  if (mainContent.trim().startsWith('{') && mainContent.includes('"response":')) {
+    try {
+      const parsed = JSON.parse(mainContent);
+      if (parsed.response) {
+        mainContent = parsed.response;
+      }
+    } catch (e) {
+      // Ignore parse error, show as is
+    }
+  }
   
   const [isThinkingOpen, setIsThinkingOpen] = useState(false); // Default to closed for cleaner look
 
