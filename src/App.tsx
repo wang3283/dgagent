@@ -351,17 +351,18 @@ function App() {
       
       switch(event.error) {
         case 'network':
-          errorMsg = '网络错误\n\n可能原因：\n1. 浏览器无法连接到语音识别服务器\n2. 防火墙或代理阻止了连接\n3. DNS 解析问题\n\n建议：\n• 检查控制台 (F12) 查看详细错误\n• 尝试在 Settings 中使用付费 Whisper API\n• 或者检查网络代理设置' + debugInfo
+          errorMsg = '无法连接语音服务 (Electron 限制)\n\n原因：桌面端应用无法访问浏览器内置的免费语音服务。\n\n解决方案：\n1. (推荐-免费) 使用系统自带听写功能：\n   • macOS: 双击 Fn 键 (需在系统设置开启)\n   • Windows: Win + H\n2. (付费) 在设置中开启 Whisper API'
           break
         case 'not-allowed':
-          errorMsg = '麦克风权限被拒绝\n\n请在浏览器地址栏左侧点击锁图标\n允许麦克风访问' + debugInfo
+          errorMsg = '麦克风权限被拒绝\n\n请在系统设置中允许应用访问麦克风' + debugInfo
           break
         case 'no-speech':
-          errorMsg = '没有检测到语音\n\n请确保：\n• 麦克风正常工作\n• 说话声音足够大\n• 麦克风未被静音' + debugInfo
-          break
+          // Ignore no-speech error to avoid spamming alerts
+          console.log('[Voice] No speech detected')
+          return;
         case 'aborted':
-          errorMsg = '语音识别被中断' + debugInfo
-          break
+          // Ignore aborted error
+          return;
         case 'audio-capture':
           errorMsg = '无法捕获音频\n\n请检查：\n• 麦克风是否被其他应用占用\n• 麦克风驱动是否正常' + debugInfo
           break

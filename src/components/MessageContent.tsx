@@ -153,7 +153,8 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
         <ReactMarkdown 
           rehypePlugins={[rehypeHighlight]}
           components={{
-            code: CodeBlock
+            code: CodeBlock,
+            p: ({node, ...props}) => <div {...props} style={{marginBottom: '0.8em'}} />
           }}
         >
           {mainContent || (thinkingContent ? '' : content)}
