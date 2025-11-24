@@ -281,10 +281,9 @@ IMPORTANT RULES:
 4. Do not output "User Question:" or "Answer:" headers. Just reply naturally.
 5. Be concise.`;
 
-        // Context is passed in the User message to simulate RAG pattern
-        const contextBlock = context.knowledgeBase 
-            ? `Reference Documents (Use these facts if relevant, but do not act as the author):\n---\n${context.knowledgeBase.substring(0, 1000)}\n---\n` 
-            : '';
+        // In Chat mode, we don't automatically inject KB context
+        // Users can switch to Agent mode if they need KB search
+        const contextBlock = '';
 
         // Convert history to LangChain messages
         const recentMessages = conversationManager.getRecentMessages(4);
@@ -325,8 +324,9 @@ To solve a task, you have access to the following tools:
 1. create_plan: Create a execution plan. Arguments: { "steps": ["step1", "step2"] }
 2. read_file: Read a file from disk. Arguments: { "path": "/absolute/path/to/file" }
 3. mark_step_completed: Mark a step as done. Arguments: { "step_index": 0 }
-4. search_pubmed: Search biomedical literature (returns first 20 results). Arguments: { "query": "soybean genetics" }
-5. search_pubmed_full: Get ALL results from PubMed (up to 1000, use only when user explicitly asks for all results). Arguments: { "query": "soybean genetics" }
+4. search_knowledge_base: Search user's personal knowledge base (documents, notes). Use this when you need information that might be in user's saved documents. Arguments: { "query": "search terms" }
+5. search_pubmed: Search biomedical literature (returns first 20 results). Arguments: { "query": "soybean genetics" }
+6. search_pubmed_full: Get ALL results from PubMed (up to 1000, use only when user explicitly asks for all results). Arguments: { "query": "soybean genetics" }
 
 IMPORTANT INSTRUCTIONS:
 - To use a tool, you MUST respond with ONLY a JSON code block:
@@ -429,6 +429,23 @@ Context from Chat: ${context.conversationHistory}`;
                     output = await this.searchPubMedFull(toolArgs.query);
                 } catch (e) {
                     output = `Full search failed: ${e}`;
+                }
+            } else if (toolName === 'search_knowledge_base') {
+                try {
+                    const kbResults = await knowledgeBase.search(toolArgs.query, 5);
+                    if (kbResults.length > 0) {
+                        output = kbResults
+                            .map((result, idx) => {
+                                const source = result.metadata?.source || result.source || 'Unknown';
+                                return `[Document ${idx + 1}: ${source}]\n${result.text}`;
+                            })
+                            .join('\n\n---\n\n');
+                        if (onStep) onStep({ type: 'observation', content: `Found ${kbResults.length} documents in knowledge base` });
+                    } else {
+                        output = 'No relevant documents found in knowledge base.';
+                    }
+                } catch (e) {
+                    output = `Knowledge base search failed: ${e}`;
                 }
             } else {
                 // Handle standard tools
