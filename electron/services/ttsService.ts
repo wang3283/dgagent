@@ -18,6 +18,24 @@ export class TTSService {
   constructor() {}
 
   public async generateAudio(text: string, voice: string = 'zh-CN-XiaoxiaoNeural'): Promise<string> {
+    let lastError: any;
+    
+    // Retry mechanism (3 attempts)
+    for (let i = 0; i < 3; i++) {
+      try {
+        return await this.generateAudioInternal(text, voice);
+      } catch (error) {
+        console.error(`TTS Attempt ${i + 1} failed:`, error);
+        lastError = error;
+        // Wait a bit before retry
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+    
+    throw new Error(`TTS failed after 3 attempts: ${lastError?.message || 'Unknown error'}`);
+  }
+
+  private async generateAudioInternal(text: string, voice: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const requestId = uuidv4().replace(/-/g, '');
       const wssUrl = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${this.TRUSTED_CLIENT_TOKEN}&ConnectionId=${requestId}`;
@@ -27,8 +45,11 @@ export class TTSService {
           'Pragma': 'no-cache',
           'Cache-Control': 'no-cache',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
-          'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold'
-        }
+          'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Accept-Language': 'en-US,en;q=0.9'
+        },
+        handshakeTimeout: 10000 // 10s timeout
       });
       const audioData: Buffer[] = [];
 
