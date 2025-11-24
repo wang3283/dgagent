@@ -267,6 +267,33 @@ export class AIAgentService {
       // 4. Setup Model
       const model = this.getModel();
 
+      // 5. Build History Messages (Common for both modes)
+      // Convert history to LangChain messages
+      const recentMessages = conversationManager.getRecentMessages(20);
+      console.log(`[AIAgent] Recent messages count: ${recentMessages.length}`);
+      
+      const historyMessages: any[] = [];
+      for (let i = 0; i < recentMessages.length - 1; i++) {
+          const msg = recentMessages[i];
+          if (!msg || typeof msg.content !== 'string') {
+            console.warn(`[AIAgent] Invalid message at index ${i}:`, msg);
+            continue;
+          }
+          try {
+            // Only add messages that have content
+            if (msg.content.trim().length > 0) {
+              if (msg.role === 'user') {
+                historyMessages.push(new HumanMessage(msg.content));
+              } else {
+                historyMessages.push(new AIMessage(msg.content));
+              }
+            }
+          } catch (err) {
+            console.error(`[AIAgent] Failed to create message at index ${i}:`, err);
+          }
+      }
+      console.log(`[AIAgent] Constructed ${historyMessages.length} history messages`);
+
       // --- CHAT MODE ---
       if (mode === 'chat') {
         const config = globalConfig.getConfig();
@@ -327,32 +354,6 @@ Your goal is to make the user feel understood and efficiently supported, providi
         // In Chat mode, we don't automatically inject KB context
         // Users can switch to Agent mode if they need KB search
         const contextBlock = '';
-
-        // Convert history to LangChain messages
-        const recentMessages = conversationManager.getRecentMessages(20);
-        console.log(`[AIAgent] Recent messages count: ${recentMessages.length}`);
-        
-        const historyMessages: any[] = [];
-        for (let i = 0; i < recentMessages.length - 1; i++) {
-            const msg = recentMessages[i];
-            if (!msg || typeof msg.content !== 'string') {
-              console.warn(`[AIAgent] Invalid message at index ${i}:`, msg);
-              continue;
-            }
-            try {
-              // Only add messages that have content
-              if (msg.content.trim().length > 0) {
-                if (msg.role === 'user') {
-                  historyMessages.push(new HumanMessage(msg.content));
-                } else {
-                  historyMessages.push(new AIMessage(msg.content));
-                }
-              }
-            } catch (err) {
-              console.error(`[AIAgent] Failed to create message at index ${i}:`, err);
-            }
-        }
-        console.log(`[AIAgent] Constructed ${historyMessages.length} history messages`);
 
         const userContent = await this.buildUserMessageContent(
             `${contextBlock}\nUser Question: ${userMessage}`,
@@ -462,6 +463,7 @@ Elon Musk is a prominent entrepreneur...`;
       
       const messages: any[] = [
         new SystemMessage(systemPrompt),
+        ...historyMessages,
         new HumanMessage(formattedContent)
       ];
 
