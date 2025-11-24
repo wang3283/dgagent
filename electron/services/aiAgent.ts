@@ -273,6 +273,8 @@ export class AIAgentService {
       console.log(`[AIAgent] Recent messages count: ${recentMessages.length}`);
       
       const historyMessages: any[] = [];
+      let lastAssistantMessage = ''; // Track last assistant message for context injection
+
       for (let i = 0; i < recentMessages.length - 1; i++) {
           const msg = recentMessages[i];
           if (!msg || typeof msg.content !== 'string') {
@@ -286,6 +288,7 @@ export class AIAgentService {
                 historyMessages.push(new HumanMessage(msg.content));
               } else {
                 historyMessages.push(new AIMessage(msg.content));
+                lastAssistantMessage = msg.content; // Update last assistant message
               }
             }
           } catch (err) {
@@ -293,6 +296,21 @@ export class AIAgentService {
           }
       }
       console.log(`[AIAgent] Constructed ${historyMessages.length} history messages`);
+
+      // Context Injection for "Translate/Rewrite" requests
+      let finalUserMessage = userMessage;
+      if (lastAssistantMessage && (
+          userMessage.includes('中文') || 
+          userMessage.includes('英文') || 
+          userMessage.includes('English') || 
+          userMessage.includes('Chinese') ||
+          userMessage.includes('translate') ||
+          userMessage.includes('翻译') ||
+          userMessage.includes('重写') ||
+          userMessage.includes('rewrite')
+      )) {
+          finalUserMessage = `${userMessage}\n\n[SYSTEM NOTE: The user is likely referring to your previous response. content: "${lastAssistantMessage.substring(0, 2000)}...". Please process this content according to user's request.]`;
+      }
 
       // --- CHAT MODE ---
       if (mode === 'chat') {
@@ -356,7 +374,7 @@ Your goal is to make the user feel understood and efficiently supported, providi
         const contextBlock = '';
 
         const userContent = await this.buildUserMessageContent(
-            `${contextBlock}\nUser Question: ${userMessage}`,
+            `${contextBlock}\nUser Question: ${finalUserMessage}`,
             attachments
         );
 
@@ -446,7 +464,7 @@ Example of Final Answer:
 <thinking>I have the info. I will answer directly.</thinking>
 Elon Musk is a prominent entrepreneur...`;
 
-      const userContent = await this.buildUserMessageContent(userMessage, attachments);
+      const userContent = await this.buildUserMessageContent(finalUserMessage, attachments);
 
       // Ensure userContent is a valid string
       let formattedContent: string;
@@ -456,7 +474,7 @@ Elon Musk is a prominent entrepreneur...`;
         // For multimodal content, convert to string for now
         formattedContent = JSON.stringify(userContent);
       } else {
-        formattedContent = userMessage || 'Hello';
+        formattedContent = finalUserMessage || 'Hello';
       }
       
       console.log(`[AIAgent] Agent mode - User content type: ${typeof userContent}, formatted: ${typeof formattedContent}`);
