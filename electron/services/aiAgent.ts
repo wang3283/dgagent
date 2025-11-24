@@ -477,6 +477,15 @@ If no tool is needed, reply naturally and professionally.`;
             const toolName = toolCallData.tool;
             const toolArgs = toolCallData.args || {};
             
+            // Check if toolName is valid
+            if (!toolName) {
+                // If no tool name, treat as final response content if it looks like one
+                // or just continue loop (though ideally model shouldn't output empty tool)
+                console.warn('[AIAgent] Tool call without name, treating as content');
+                finalResponse = content;
+                break;
+            }
+            
             // Handle "fake" tools that models sometimes invent for final response
             if (['respond', 'answer', 'reply', 'final_answer', 'response'].includes(toolName)) {
                 finalResponse = toolCallData.response || toolCallData.answer || toolCallData.content || toolCallData.reply || (typeof toolArgs === 'string' ? toolArgs : JSON.stringify(toolArgs));

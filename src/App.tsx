@@ -123,9 +123,19 @@ function App() {
   }, [config, isConfigLoaded])
 
   // Auto-scroll to bottom
+  const prevConvIdRef = useRef<string | null>(null)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [currentConversation?.messages])
+    if (currentConversation) {
+      // If conversation switched, scroll instantly
+      if (prevConvIdRef.current !== currentConversation.id) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+        prevConvIdRef.current = currentConversation.id
+      } else {
+        // If same conversation (new message), scroll smoothly
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }
+    }
+  }, [currentConversation?.id, currentConversation?.messages.length])
 
   const loadInitialData = async () => {
     try {
