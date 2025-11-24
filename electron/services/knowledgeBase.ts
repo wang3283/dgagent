@@ -253,8 +253,10 @@ export class KnowledgeBaseService {
 
   public async search(query: string, limit: number = 5) {
     const config = globalConfig.getConfig();
+    let vectorResults: any[] = [];
+    let keywordResults: any[] = [];
     
-    // Try vector search if embedding model is configured
+    // 1. Vector Search (Semantic)
     if (config.embeddingModel && config.embeddingModel.trim() !== '') {
       try {
         await this.initDB();
@@ -262,23 +264,34 @@ export class KnowledgeBaseService {
           console.log(`[KB] Using vector search with embedding model: ${config.embeddingModel}`);
           const embeddingsModel = await this.getEmbeddings();
           const queryVector = await embeddingsModel.embedQuery(query);
-          const results = await this.table.vectorSearch(queryVector)
+          vectorResults = await this.table.vectorSearch(queryVector)
             .limit(limit)
             .toArray();
-          console.log(`[KB] Vector search found ${results.length} results`);
-          return results;
+          console.log(`[KB] Vector search found ${vectorResults.length} results`);
         }
       } catch (error) {
-        console.warn(`[KB] Vector search failed, falling back to keyword search:`, error);
+        console.warn(`[KB] Vector search failed:`, error);
       }
     }
 
-    // Fallback: use keyword-based search
-    const keywordResults = this.keywordSearch(query, limit);
+    // 2. Keyword Search (Exact)
+    keywordResults = this.keywordSearch(query, limit);
     
-    // If no keyword matches, return recent documents
-    if (keywordResults.length === 0) {
-      console.log(`[KB] No keyword matches, returning recent documents`);
+    // 3. Hybrid Merge (Deduplicate by text content)
+    // Combine results, prioritizing vector results but including unique keyword matches
+    const combined = [...vectorResults];
+    
+    for (const kwResult of keywordResults) {
+      // Check if this text is already in vector results (fuzzy matching or exact)
+      const exists = vectorResults.some(v => v.text === kwResult.text);
+      if (!exists) {
+        combined.push(kwResult);
+      }
+    }
+    
+    // If still no results, return recent documents as fallback
+    if (combined.length === 0) {
+      console.log(`[KB] No matches found, returning recent documents`);
       return this.documents
         .slice(-limit)
         .map(doc => ({
@@ -287,7 +300,8 @@ export class KnowledgeBaseService {
         }));
     }
     
-    return keywordResults;
+    // Limit total results
+    return combined.slice(0, limit * 2); // Return slightly more for hybrid
   }
   
   public async getStats() {
