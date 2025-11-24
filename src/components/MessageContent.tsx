@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { Brain, ChevronDown, ChevronRight } from 'lucide-react';
+import { Brain, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css'; // Or any other theme
 
 interface MessageContentProps {
   content: string;
@@ -33,6 +36,70 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
   }
   
   const [isThinkingOpen, setIsThinkingOpen] = useState(false); // Default to closed for cleaner look
+
+  // Custom Code Block Component with Copy Button
+  const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
+    const [copied, setCopied] = useState(false);
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+
+    if (inline) {
+      return <code className={className} {...props}>{children}</code>;
+    }
+
+    return (
+      <div className="code-block-wrapper" style={{ position: 'relative', margin: '12px 0' }}>
+        <div className="code-header" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '6px 12px',
+          background: 'var(--bg-surface-hover)',
+          borderTopLeftRadius: '6px',
+          borderTopRightRadius: '6px',
+          borderBottom: '1px solid var(--border-subtle)',
+          fontSize: '12px',
+          color: 'var(--text-secondary)'
+        }}>
+          <span>{language || 'text'}</span>
+          <button 
+            onClick={handleCopy}
+            className="btn-ghost"
+            style={{ 
+              padding: '2px 6px', 
+              height: 'auto',
+              fontSize: '11px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <div style={{ overflow: 'auto', maxHeight: '400px' }}>
+          <code className={className} {...props} style={{
+            display: 'block',
+            padding: '12px',
+            background: '#1e1e1e', // Always dark for code
+            color: '#d4d4d4',
+            borderBottomLeftRadius: '6px',
+            borderBottomRightRadius: '6px',
+            fontFamily: 'monospace'
+          }}>
+            {children}
+          </code>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="message-content-wrapper">
@@ -78,8 +145,15 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
         </div>
       )}
       
-      <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>
-        {mainContent || (thinkingContent ? '' : content)}
+      <div className="message-content markdown-body">
+        <ReactMarkdown 
+          rehypePlugins={[rehypeHighlight]}
+          components={{
+            code: CodeBlock
+          }}
+        >
+          {mainContent || (thinkingContent ? '' : content)}
+        </ReactMarkdown>
       </div>
     </div>
   );
