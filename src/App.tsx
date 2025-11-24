@@ -64,7 +64,7 @@ function App() {
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [processingStatus, setProcessingStatus] = useState('')
-  const [attachedFiles, setAttachedFiles] = useState<Array<{name: string; path: string; type: string}>>([])
+  const [attachedFiles, setAttachedFiles] = useState<Array<{name: string; path: string; type: string; preview?: string}>>([])
   const [isRecording, setIsRecording] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [currentAudioPath, setCurrentAudioPath] = useState<string | null>(null)
@@ -200,20 +200,28 @@ function App() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const newFiles: Array<{name: string; path: string; type: string}> = []
+    const newFiles: Array<{name: string; path: string; type: string; preview?: string}> = []
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i] as any // Electron File has path property
+      let preview: string | undefined = undefined;
+
+      // Generate preview for images
+      if (file.type.startsWith('image/')) {
+        preview = URL.createObjectURL(files[i]);
+      }
+
       if (file.path) {
         newFiles.push({
           name: file.name,
           path: file.path,
-          type: file.type || 'unknown'
+          type: file.type || 'unknown',
+          preview
         })
       }
     }
     
-    setAttachedFiles([...attachedFiles, ...newFiles])
+    setAttachedFiles(prev => [...prev, ...newFiles])
     
     // Reset file input
     if (fileInputRef.current) {
@@ -1238,23 +1246,82 @@ function App() {
                   {attachedFiles.length > 0 && (
                     <div className="attachment-preview">
                       {attachedFiles.map((file, index) => (
-                        <div key={index} className="attachment-chip">
-                          {file.type.startsWith('image/') ? <ImageIcon size={14} /> : 
-                           file.type.startsWith('video/') ? <Video size={14} /> : 
-                           <File size={14} />}
-                          <span style={{maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-                            {file.name}
-                          </span>
+                        <div key={index} className="attachment-chip" style={{
+                          position: 'relative',
+                          padding: file.preview ? 0 : '6px 10px',
+                          overflow: 'hidden',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '8px',
+                          height: '48px',
+                          minWidth: file.preview ? '48px' : 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          {file.preview ? (
+                            <div style={{position: 'relative', width: '100%', height: '100%'}}>
+                              <img 
+                                src={file.preview} 
+                                alt={file.name}
+                                style={{
+                                  width: '48px', 
+                                  height: '48px', 
+                                  objectFit: 'cover',
+                                  display: 'block'
+                                }} 
+                              />
+                              <div style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                background: 'rgba(0,0,0,0.5)',
+                                color: 'white',
+                                fontSize: '8px',
+                                padding: '2px 4px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                {file.name}
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {file.type.startsWith('video/') ? <Video size={16} /> : 
+                               file.type.includes('pdf') ? <File size={16} color="var(--danger)" /> :
+                               <File size={16} />}
+                              <span style={{maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '12px'}}>
+                                {file.name}
+                              </span>
+                            </>
+                          )}
+                          
                           <button 
                             onClick={() => handleRemoveFile(index)}
-                            className="btn-ghost"
-                            style={{padding: 2, height: 'auto', marginLeft: 4}}
+                            className="btn-remove-attachment"
+                            style={{
+                              position: 'absolute',
+                              top: -4,
+                              right: -4,
+                              background: 'var(--bg-surface)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: '50%',
+                              width: '16px',
+                              height: '16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              color: 'var(--text-secondary)',
+                              zIndex: 10
+                            }}
                           >
-                            <X size={12} />
+                            <X size={10} />
                           </button>
                         </div>
                       ))}
-                      <div style={{flexBasis: '100%', height: 0}}></div> {/* Force break if needed */}
+                      <div style={{flexBasis: '100%', height: 0}}></div>
                       <button
                         onClick={handleSaveFilesToKB}
                         className="btn-ghost"
