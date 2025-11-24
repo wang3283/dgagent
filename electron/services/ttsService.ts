@@ -1,6 +1,5 @@
 import WebSocket from 'ws';
-// Use require for uuid to avoid ESM issues in Electron CommonJS environment
-const { v4: uuidv4 } = require('uuid');
+import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
@@ -23,8 +22,23 @@ export class TTSService {
       const requestId = uuidv4().replace(/-/g, '');
       const wssUrl = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${this.TRUSTED_CLIENT_TOKEN}&ConnectionId=${requestId}`;
       
-      const ws = new WebSocket(wssUrl);
+      const ws = new WebSocket(wssUrl, {
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+          'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold'
+        }
+      });
       const audioData: Buffer[] = [];
+
+      // Handle handshake errors (like 403)
+      ws.on('unexpected-response', (request: any, response: any) => {
+        console.error('TTS WebSocket Unexpected Response:', response.statusCode, response.statusMessage);
+        if (response.statusCode === 403) {
+           console.error('403 Forbidden. Headers:', response.headers);
+        }
+      });
 
       // Create temp file path
       const tempDir = app.getPath('temp');
