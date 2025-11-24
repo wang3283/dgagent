@@ -10,6 +10,7 @@ import { multiLayerKB, KBLayer } from './services/multiLayerKB';
 import { documentWatcher } from './services/documentWatcher';
 import { voiceChatService } from './services/voiceChat';
 import { conversationSummaryService } from './services/conversationSummary';
+import { ttsService } from './services/ttsService';
 
 process.env.DIST = path.join(__dirname, '../dist');
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public');
@@ -358,7 +359,9 @@ ipcMain.handle('voice-to-text', async (_, audioPath: string) => {
 
 ipcMain.handle('text-to-speech', async (_, text: string) => {
   try {
-    return await voiceChatService.textToSpeech(text);
+    // Use Edge TTS (free and high quality)
+    // Default to Xiaoxiao (Warm) for Chinese
+    return await ttsService.generateAudio(text, 'zh-CN-XiaoxiaoNeural');
   } catch (error) {
     console.error('text-to-speech error:', error);
     throw error;
@@ -492,21 +495,7 @@ function createWindow() {
     win.webContents.openDevTools(); // Open DevTools automatically in dev
   } else {
     win.loadFile(path.join(process.env.DIST!, 'index.html'));
-    // Temporarily open DevTools in production for debugging
-    win.webContents.openDevTools();
   }
-
-  // Add keyboard shortcut to toggle DevTools (Ctrl+Shift+I or Cmd+Option+I)
-  win.webContents.on('before-input-event', (event, input) => {
-    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
-      win?.webContents.toggleDevTools();
-      event.preventDefault();
-    }
-    if (input.meta && input.alt && input.key.toLowerCase() === 'i') {
-      win?.webContents.toggleDevTools();
-      event.preventDefault();
-    }
-  });
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
