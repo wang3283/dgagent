@@ -488,10 +488,8 @@ If no tool is needed, reply naturally and professionally.`;
             const toolArgs = toolCallData.args || {};
             
             // Check if toolName is valid
-            if (!toolName) {
-                // If no tool name, treat as final response content if it looks like one
-                // or just continue loop (though ideally model shouldn't output empty tool)
-                console.warn('[AIAgent] Tool call without name, treating as content');
+            if (!toolName || toolName === 'null' || toolName === 'undefined') {
+                console.warn(`[AIAgent] Invalid tool name: ${toolName}, treating as content`);
                 finalResponse = content;
                 break;
             }
