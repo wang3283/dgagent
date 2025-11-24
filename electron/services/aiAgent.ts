@@ -260,8 +260,9 @@ export class AIAgentService {
       const currentConv = conversationManager.getCurrentConversation();
       const isFirstMessage = currentConv && currentConv.messages.length === 1;
       
-      // 3. Gather context
-      const context = await this.gatherContext(userMessage);
+      // 3. Gather context (skip KB search if user has attachments, as they're asking about the attachments)
+      const skipKBSearch = attachments && attachments.length > 0;
+      const context = await this.gatherContext(userMessage, skipKBSearch);
       
       // 4. Setup Model
       const model = this.getModel();
@@ -287,60 +288,25 @@ IMPORTANT RULES:
 
         // Convert history to LangChain messages
         const recentMessages = conversationManager.getRecentMessages(4);
-        console.log(`[AIAgent] Recent messages count: ${recentMessages.length}`);
-        
-        const historyMessages: any[] = [];
-        for (let i = 0; i < recentMessages.length - 1; i++) {
-            const msg = recentMessages[i];
-            if (!msg || typeof msg.content !== 'string') {
-              console.warn(`[AIAgent] Invalid message at index ${i}:`, msg);
-              continue;
-            }
-            try {
-              if (msg.role === 'user') {
-                historyMessages.push(new HumanMessage(msg.content));
-              } else {
-                historyMessages.push(new AIMessage(msg.content));
-              }
-            } catch (err) {
-              console.error(`[AIAgent] Failed to create message at index ${i}:`, err);
-            }
-        }
+        const historyMessages = recentMessages.slice(0, -1).map(msg => {
+            if (msg.role === 'user') return new HumanMessage(msg.content);
+            return new AIMessage(msg.content);
+        });
 
         const userContent = await this.buildUserMessageContent(
             `${contextBlock}\nUser Question: ${userMessage}`,
             attachments
         );
 
-        // Ensure userContent is a valid string
-        let formattedContent: string;
-        if (typeof userContent === 'string') {
-          formattedContent = userContent;
-        } else if (Array.isArray(userContent)) {
-          // For multimodal content, convert to string for now
-          formattedContent = JSON.stringify(userContent);
-        } else {
-          formattedContent = 'Hello';
-        }
-        
-        console.log(`[AIAgent] User content type: ${typeof userContent}, formatted: ${typeof formattedContent}`);
-        
-        const messages: any[] = [
+        const messages = [
             new SystemMessage(systemPrompt),
             ...historyMessages,
-            new HumanMessage(formattedContent)
+            new HumanMessage({ content: userContent })
         ];
         
-        console.log(`[AIAgent] Prepared ${messages.length} messages for model`);
         if (onStep) onStep({ type: 'thinking', content: 'Thinking...' });
         
         const response = await model.invoke(messages);
-        console.log(`[AIAgent] Got response from model`);
-        
-        if (!response || !response.content) {
-          throw new Error('Invalid response from model: missing content');
-        }
-        
         const finalResponse = response.content as string;
         
         conversationManager.addMessage('assistant', finalResponse);
@@ -381,22 +347,9 @@ Context from Chat: ${context.conversationHistory}`;
 
       const userContent = await this.buildUserMessageContent(userMessage, attachments);
 
-      // Ensure userContent is a valid string
-      let formattedContent: string;
-      if (typeof userContent === 'string') {
-        formattedContent = userContent;
-      } else if (Array.isArray(userContent)) {
-        // For multimodal content, convert to string for now
-        formattedContent = JSON.stringify(userContent);
-      } else {
-        formattedContent = userMessage || 'Hello';
-      }
-      
-      console.log(`[AIAgent] Agent mode - User content type: ${typeof userContent}, formatted: ${typeof formattedContent}`);
-      
       const messages: any[] = [
         new SystemMessage(systemPrompt),
-        new HumanMessage(formattedContent)
+        new HumanMessage({ content: userContent })
       ];
 
       if (onStep) onStep({ type: 'thinking', content: 'Analyzing request...' });
@@ -442,14 +395,10 @@ Context from Chat: ${context.conversationHistory}`;
             
             // Handle "fake" tools that models sometimes invent for final response
             if (['respond', 'answer', 'reply', 'final_answer', 'response'].includes(toolName)) {
-                finalResponse = toolCallData.response || toolCallData.answer || toolCallData.content || toolCallData.reply || (typeof toolArgs === 'string' ? toolArgs : JSON.stringify(toolArgs)) || '';
+                finalResponse = toolCallData.response || toolCallData.answer || toolCallData.content || toolCallData.reply || (typeof toolArgs === 'string' ? toolArgs : JSON.stringify(toolArgs));
                 // If the response is in args (e.g. { "tool": "respond", "args": { "text": "..." } })
-                if (typeof finalResponse === 'object' && finalResponse !== null && finalResponse !== undefined) {
+                if (typeof finalResponse === 'object' && finalResponse !== null) {
                     finalResponse = (finalResponse as any).text || (finalResponse as any).message || (finalResponse as any).content || JSON.stringify(finalResponse);
-                }
-                // Ensure finalResponse is a string
-                if (!finalResponse || typeof finalResponse !== 'string') {
-                    finalResponse = 'I apologize, but I encountered an issue generating a response.';
                 }
                 break; // Exit loop and return this response
             }
@@ -568,28 +517,32 @@ Title:`;
   }
 
   // Gather context from knowledge base and conversation history
-  private async gatherContext(query: string): Promise<{
+  private async gatherContext(query: string, skipKBSearch: boolean = false): Promise<{
     knowledgeBase: string;
     conversationHistory: string;
     combined: string;
   }> {
-    console.log('[AIAgent] Gathering context...');
+    console.log(`[AIAgent] Gathering context... (skipKBSearch: ${skipKBSearch})`);
     
-    // 1. Search knowledge base
+    // 1. Search knowledge base (skip if user has attachments)
     let kbContext = '';
-    try {
-      const kbResults = await knowledgeBase.search(query, 5);
-      if (kbResults.length > 0) {
-        kbContext = kbResults
-          .map((result, idx) => {
-            const source = result.metadata?.source || result.source || 'Unknown';
-            return `[Document ${idx + 1}: ${source}]\n${result.text}`;
-          })
-          .join('\n\n---\n\n');
-        console.log(`[AIAgent] Found ${kbResults.length} relevant documents from KB`);
+    if (!skipKBSearch) {
+      try {
+        const kbResults = await knowledgeBase.search(query, 5);
+        if (kbResults.length > 0) {
+          kbContext = kbResults
+            .map((result, idx) => {
+              const source = result.metadata?.source || result.source || 'Unknown';
+              return `[Document ${idx + 1}: ${source}]\n${result.text}`;
+            })
+            .join('\n\n---\n\n');
+          console.log(`[AIAgent] Found ${kbResults.length} relevant documents from KB`);
+        }
+      } catch (error) {
+        console.warn('[AIAgent] KB search error:', error);
       }
-    } catch (error) {
-      console.warn('[AIAgent] KB search error:', error);
+    } else {
+      console.log('[AIAgent] Skipping KB search (user has attachments)');
     }
     
     // 2. Get recent conversation history
